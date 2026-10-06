@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Typing Speed Test</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  :root{
+    --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --muted:#94a3b8;
+    --accent:#38bdf8; --good:#22c55e; --bad:#ef4444; --border:#334155;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#f1f5f9; --card:#ffffff; --text:#0f172a; --muted:#64748b;
+      --accent:#0284c7; --good:#16a34a; --bad:#dc2626; --border:#e2e8f0;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --muted:#94a3b8;
+    --accent:#38bdf8; --good:#22c55e; --bad:#ef4444; --border:#334155;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100vh; background:var(--bg); color:var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display:flex; justify-content:center; padding:32px 16px;
+  }
+  .wrap{ width:100%; max-width:720px; }
+  h1{ font-size:1.6rem; margin-bottom:4px; }
+  p.sub{ color:var(--muted); margin-top:0; }
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:20px; margin-bottom:20px;
+  }
+  .controls{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+  select, button{
+    font-size:0.95rem; padding:8px 14px; border-radius:8px;
+    border:1px solid var(--border); background:var(--bg); color:var(--text);
+    cursor:pointer;
+  }
+  button.primary{ background:var(--accent); color:#01202e; border:none; font-weight:600; }
+  button:disabled{ opacity:0.5; cursor:not-allowed; }
+  .stats{ display:flex; gap:24px; flex-wrap:wrap; margin-bottom:14px; }
+  .stat{ min-width:80px; }
+  .stat .label{ color:var(--muted); font-size:0.75rem; text-transform:uppercase; letter-spacing:0.04em; }
+  .stat .value{ font-size:1.5rem; font-weight:700; }
+  #textDisplay{
+    font-size:1.25rem; line-height:1.7; padding:16px; border-radius:8px;
+    background:var(--bg); border:1px solid var(--border); user-select:none;
+    letter-spacing:0.3px;
+  }
+  #textDisplay span.correct{ color:var(--good); }
+  #textDisplay span.incorrect{ color:var(--bad); text-decoration:underline; }
+  #textDisplay span.current{ background:var(--accent); color:#01202e; border-radius:3px; }
+  textarea#hiddenInput{
+    position:absolute; opacity:0; height:0; width:0; pointer-events:none;
+  }
+  #typingArea{ position:relative; }
+  .overlay-msg{
+    text-align:center; color:var(--muted); font-size:0.9rem; margin-top:8px;
+  }
+  table{ width:100%; border-collapse:collapse; font-size:0.9rem; }
+  th, td{ text-align:left; padding:8px 6px; border-bottom:1px solid var(--border); }
+  th{ color:var(--muted); font-weight:600; font-size:0.75rem; text-transform:uppercase; }
+  .empty{ color:var(--muted); font-size:0.9rem; padding:12px 0; text-align:center; }
+  .badge{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:0.7rem; background:var(--border); }
+  .name-row{ display:flex; gap:8px; margin-top:12px; }
+  .name-row input{
+    flex:1; padding:8px 10px; border-radius:8px; border:1px solid var(--border);
+    background:var(--bg); color:var(--text); font-size:0.9rem;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>⌨️ Typing Speed Test</h1>
+  <p class="sub">Pick a difficulty, click Start, then just type. WPM, accuracy, and your best scores are saved locally.</p>
+
+  <div class="card">
+    <div class="controls">
+      <select id="difficulty">
+        <option value="easy">Easy</option>
+        <option value="medium" selected>Medium</option>
+        <option value="hard">Hard</option>
+      </select>
+      <button class="primary" id="startBtn">Start</button>
+      <button id="resetBtn">Reset</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="label">Time</div><div class="value" id="timeVal">30</div></div>
+      <div class="stat"><div class="label">WPM</div><div class="value" id="wpmVal">0</div></div>
+      <div class="stat"><div class="label">Accuracy</div><div class="value" id="accVal">100%</div></div>
+      <div class="stat"><div class="label">Errors</div><div class="value" id="errVal">0</div></div>
+    </div>
+
+    <div id="typingArea">
+      <div id="textDisplay">Click "Start" to begin.</div>
+      <textarea id="hiddenInput"></textarea>
+    </div>
+    <div class="overlay-msg" id="statusMsg"></div>
+
+    <div class="name-row" id="saveRow" style="display:none;">
+      <input type="text" id="playerName" placeholder="Enter your name for the leaderboard" maxlength="20">
+      <button class="primary" id="saveScoreBtn">Save Score</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <strong>🏆 Leaderboard</strong>
+      <select id="filterDifficulty">
+        <option value="all">All levels</option>
+        <option value="easy">Easy</option>
+        <option value="medium">Medium</option>
+        <option value="hard">Hard</option>
+      </select>
+    </div>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Name</th><th>WPM</th><th>Accuracy</th><th>Level</th><th>Date</th></tr>
+      </thead>
+      <tbody id="leaderboardBody"></tbody>
+    </table>
+    <div class="empty" id="emptyMsg" style="display:none;">No scores yet — be the first!</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const TEXTS = {
+    easy: [
+      "the cat sat on the mat and looked at the sun",
+      "i like to eat food and play with my dog",
+      "we went to the park to run and jump and play",
+      "the sky is blue and the grass is green today"
+    ],
+    medium: [
+      "the quick brown fox jumps over the lazy dog while the sun sets behind the hills",
+      "typing every day helps you build speed and accuracy over time without much effort",
+      "practice makes perfect when you focus on both correctness and consistent daily repetition",
+      "learning a new skill requires patience persistence and a willingness to make mistakes"
+    ],
+    hard: [
+      "the intricacies of quantum mechanics often perplex even the most experienced physicists studying subatomic particles",
+      "juxtaposition of contrasting elements within a narrative can significantly heighten thematic resonance for readers",
+      "the entrepreneur meticulously analyzed quarterly revenue fluctuations before finalizing the ambitious expansion strategy",
+      "asynchronous programming paradigms enable developers to build highly responsive and scalable web applications efficiently"
+    ]
+  };
+  const DURATION = { easy: 30, medium: 30, hard: 45 };
+  const STORAGE_KEY = "typingSpeedTest.leaderboard.v1";
+
+  const el = (id) => document.getElementById(id);
+  const textDisplay = el("textDisplay");
+  const hiddenInput = el("hiddenInput");
+  const startBtn = el("startBtn");
+  const resetBtn = el("resetBtn");
+  const difficultySel = el("difficulty");
+  const timeVal = el("timeVal");
+  const wpmVal = el("wpmVal");
+  const accVal = el("accVal");
+  const errVal = el("errVal");
+  const statusMsg = el("statusMsg");
+  const saveRow = el("saveRow");
+  const playerNameInput = el("playerName");
+  const saveScoreBtn = el("saveScoreBtn");
+  const leaderboardBody = el("leaderboardBody");
+  const emptyMsg = el("emptyMsg");
+  const filterDifficulty = el("filterDifficulty");
+
+  let state = null;
+
+  function pickText(level){
+    const arr = TEXTS[level];
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  function renderText(){
+    const { text, typed } = state;
+    let html = "";
+    for (let i = 0; i < text.length; i++){
+      const ch = text[i];
+      let cls = "";
+      if (i < typed.length){
+        cls = typed[i] === ch ? "correct" : "incorrect";
+      } else if (i === typed.length){
+        cls = "current";
+      }
+      html += `<span class="${cls}">${escapeHtml(ch)}</span>`;
+    }
+    textDisplay.innerHTML = html;
+  }
+
+  function escapeHtml(ch){
+    if (ch === " ") return "&nbsp;";
+    if (ch === "&") return "&amp;";
+    if (ch === "<") return "&lt;";
+    if (ch === ">") return "&gt;";
+    return ch;
+  }
+
+  function computeStats(){
+    const { text, typed, startTime } = state;
+    let correct = 0, incorrect = 0;
+    for (let i = 0; i < typed.length; i++){
+      if (typed[i] === text[i]) correct++; else incorrect++;
+    }
+    const elapsedMin = Math.max((Date.now() - startTime) / 60000, 1/60000);
+    const wpm = Math.round((correct / 5) / elapsedMin);
+    const accuracy = typed.length ? Math.round((correct / typed.length) * 100) : 100;
+    return { wpm, accuracy, errors: incorrect };
+  }
+
+  function startTest(){
+    const level = difficultySel.value;
+    const text = pickText(level);
+    const duration = DURATION[level];
+    state = {
+      level, text, typed: "", startTime: null, timer: null,
+      timeLeft: duration, duration, finished: false
+    };
+    timeVal.textContent = duration;
+    wpmVal.textContent = "0";
+    accVal.textContent = "100%";
+    errVal.textContent = "0";
+    statusMsg.textContent = "Go! Start typing...";
+    saveRow.style.display = "none";
+    difficultySel.disabled = true;
+    startBtn.disabled = true;
+    renderText();
+    hiddenInput.value = "";
+    hiddenInput.disabled = false;
+    hiddenInput.focus();
+  }
+
+  function tick(){
+    state.timeLeft -= 1;
+    timeVal.textContent = state.timeLeft;
+    if (state.timeLeft <= 0){
+      finishTest();
+    }
+  }
+
+  function finishTest(){
+    if (state.finished) return;
+    state.finished = true;
+    clearInterval(state.timer);
+    hiddenInput.disabled = true;
+    difficultySel.disabled = false;
+    startBtn.disabled = false;
+    const stats = computeStats();
+    wpmVal.textContent = stats.wpm;
+    accVal.textContent = stats.accuracy + "%";
+    errVal.textContent = stats.errors;
+    statusMsg.textContent = `Done! ${stats.wpm} WPM at ${stats.accuracy}% accuracy.`;
+    state.finalStats = stats;
+    saveRow.style.display = "flex";
+  }
+
+  hiddenInput.addEventListener("input", () => {
+    if (!state || state.finished) return;
+    if (!state.startTime){
+      state.startTime = Date.now();
+      state.timer = setInterval(tick, 1000);
+    }
+    state.typed = hiddenInput.value;
+    renderText();
+    const stats = computeStats();
+    wpmVal.textContent = stats.wpm;
+    accVal.textContent = stats.accuracy + "%";
+    errVal.textContent = stats.errors;
+    if (state.typed.length >= state.text.length){
+      finishTest();
+    }
+  });
+
+  startBtn.addEventListener("click", startTest);
+  resetBtn.addEventListener("click", () => {
+    if (state && state.timer) clearInterval(state.timer);
+    state = null;
+    textDisplay.textContent = 'Click "Start" to begin.';
+    timeVal.textContent = DURATION[difficultySel.value];
+    wpmVal.textContent = "0";
+    accVal.textContent = "100%";
+    errVal.textContent = "0";
+    statusMsg.textContent = "";
+    saveRow.style.display = "none";
+    difficultySel.disabled = false;
+    startBtn.disabled = false;
+    hiddenInput.disabled = false;
+    hiddenInput.value = "";
+  });
+
+  difficultySel.addEventListener("change", () => {
+    timeVal.textContent = DURATION[difficultySel.value];
+  });
+
+  function loadScores(){
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch(e){
+      console.error("Could not load leaderboard", e);
+      return [];
+    }
+  }
+
+  function saveScores(scores){
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(scores));
+    } catch(e){
+      console.error("Could not save leaderboard", e);
+    }
+  }
+
+  function renderLeaderboard(){
+    const filter = filterDifficulty.value;
+    let scores = loadScores();
+    if (filter !== "all"){
+      scores = scores.filter(s => s.level === filter);
+    }
+    scores.sort((a,b) => b.wpm - a.wpm);
+    scores = scores.slice(0, 20);
+    leaderboardBody.innerHTML = "";
+    if (scores.length === 0){
+      emptyMsg.style.display = "block";
+      return;
+    }
+    emptyMsg.style.display = "none";
+    scores.forEach((s, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${i+1}</td>
+        <td>${escapeCell(s.name)}</td>
+        <td>${s.wpm}</td>
+        <td>${s.accuracy}%</td>
+        <td><span class="badge">${s.level}</span></td>
+        <td>${s.date}</td>
+      `;
+      leaderboardBody.appendChild(tr);
+    });
+  }
+
+  function escapeCell(str){
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  saveScoreBtn.addEventListener("click", () => {
+    if (!state || !state.finalStats) return;
+    const name = (playerNameInput.value || "Anonymous").trim().slice(0, 20) || "Anonymous";
+    const scores = loadScores();
+    scores.push({
+      name,
+      wpm: state.finalStats.wpm,
+      accuracy: state.finalStats.accuracy,
+      level: state.level,
+      date: new Date().toLocaleDateString()
+    });
+    saveScores(scores);
+    renderLeaderboard();
+    saveRow.style.display = "none";
+    playerNameInput.value = "";
+    statusMsg.textContent = "Score saved to leaderboard!";
+  });
+
+  filterDifficulty.addEventListener("change", renderLeaderboard);
+
+  // init
+  timeVal.textContent = DURATION[difficultySel.value];
+  renderLeaderboard();
+})();
+</script>
+</body>
+</html>
